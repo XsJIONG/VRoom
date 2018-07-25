@@ -1,0 +1,20 @@
+# depslib dependency file v1.0
+1532423006 source:f:\develop\c++\vroom\main.cpp
+	<stdlib.h>
+	<stdio.h>
+	<conio.h>
+	<winsock2.h>
+	<iostream>
+	<string>
+	<vconsole.h>
+	<vfield.h>
+	<sstream>
+	<cwctype>
+
+1532099522 f:\develop\c++\worldengine\vconsole.h
+	<windows.h>
+
+1532423020 f:\develop\c++\worldengine\vfield.h
+	<windows.h>
+	<string>
+

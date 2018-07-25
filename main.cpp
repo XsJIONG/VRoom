@@ -4,6 +4,10 @@
 #include <winsock2.h>
 #include <iostream>
 #include <string>
+#include <vconsole.h>
+#include <vfield.h>
+#include <sstream>
+#include <cwctype>
 #define THREAD DWORD WINAPI
 #define BufSize 1024
 using namespace std;
@@ -12,80 +16,81 @@ const char* VERSION="1.0";
 
 const int PORT=8898;
 namespace Type {
-	const int JOIN=0;
-	const int MSG=1;
+	const char JOIN=1;
+	const char MSG=2;
+	const char RENAME=3;
+	const short MsgLimit=100;
 };
 namespace Global {
 	char* UserName;
 	short UserLength;
 	WSADATA WData;
 	SOCKET UDPSocket;
+	HWND ConsoleWindow;
 	SOCKADDR_IN RecvAddr,SendAddr;
 	char MsgBuf[BufSize];
 	int AddrSize;
 	int Port;
 	void sendR(string data) {
 		char* p=(char*) data.data();
-		sendR(data);
+		sendR(p);
 	}
 	void sendR(char* data) {
-		sendto(Global::UDPSocket, data, strlen(data), 0, (sockaddr*)&Global::SendAddr, sizeof(Global::SendAddr));
+		sendto(Global::UDPSocket, data, strlen(data)+1, 0, (sockaddr*)&Global::SendAddr, sizeof(Global::SendAddr));
+	}
+	void sendR(char* data, int len) {
+		sendto(Global::UDPSocket, data, len, 0, (sockaddr*)&Global::SendAddr, sizeof(Global::SendAddr));
 	}
 };
 namespace UI {
-HANDLE CH;
+VField *Content,*Edit;
 void cls() {
 	system("cls");
-}
-void moveCursor(short x, short y) {
-	COORD _Coord;
-	_Coord.X=x;
-	_Coord.Y=y;
-	SetConsoleCursorPosition(CH,_Coord);
-}
-void moveCursor(COORD c) {
-	SetConsoleCursorPosition(CH,c);
 }
 CONSOLE_SCREEN_BUFFER_INFO _Buffer;
 short CWidth=80,CHeight=10;
 void setCenterShow(){
-	HWND h=GetConsoleWindow();
 	long scrWidth,scrHeight;
 	RECT rect;
 	scrWidth=GetSystemMetrics(SM_CXSCREEN);
 	scrHeight=GetSystemMetrics(SM_CYSCREEN);
-	GetWindowRect(h,&rect);
-	SetWindowPos(h,HWND_TOPMOST,(scrWidth-rect.right)/2,(scrHeight-rect.bottom)/2,rect.right-rect.left,rect.bottom-rect.top,SWP_SHOWWINDOW);
+	GetWindowRect(Global::ConsoleWindow,&rect);
+	SetWindowPos(Global::ConsoleWindow,HWND_TOPMOST,(scrWidth-rect.right)/2,(scrHeight-rect.bottom)/2,rect.right-rect.left,rect.bottom-rect.top,SWP_SHOWWINDOW);
+}
+char _Tmp[2048];
+template <class...T>
+void printCenter(const char* f, T...arg) {
+	sprintf(_Tmp,f,arg...);
+	int ss=(CWidth-strlen(_Tmp))/2;
+	for (int i=0;i<ss;i++) putchar(' ');
+	printf("%s",_Tmp);
+	putchar('\n');
+}
+string __TMP;
+bool ContentEmpty;
+template <class...T>
+void printCCenter(const char* f, T...arg) {
+	sprintf(_Tmp,f,arg...);
+	int ss=(CWidth-strlen(_Tmp))/2;
+	__TMP.clear();
+	if (ContentEmpty) ContentEmpty=0; else __TMP+='\n';
+	while (ss--) __TMP+=' ';
+	__TMP+=_Tmp;
+	Content->append(__TMP);
+}
+template <class...T>
+void printC(const char* f, T...arg) {
+	sprintf(_Tmp,f,arg...);
+	__TMP.clear();
+	if (ContentEmpty) ContentEmpty=0; else __TMP+='\n';
+	__TMP+=_Tmp;
+	Content->append(__TMP);
 }
 void setConsoleSize(short a, short b) {
 	char tmp[30];
 	sprintf(tmp,"mode con cols=%d lines=%d",a,b);
 	system(tmp);
 	CWidth=a,CHeight=b;
-}
-inline void InitConsole() {
-	CH=GetStdHandle(STD_OUTPUT_HANDLE);
-}
-COORD getCursor() {
-	GetConsoleScreenBufferInfo(CH, &_Buffer);
-	return _Buffer.dwCursorPosition;
-}
-short getCursorX() {
-	GetConsoleScreenBufferInfo(CH, &_Buffer);
-	return _Buffer.dwCursorPosition.X;
-}
-short getCursorY() {
-	GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &_Buffer);
-	return _Buffer.dwCursorPosition.Y;
-}
-char _Tmp[1024];
-template <class...T>
-void CenterPrint(const char* f, T...arg) {
-	sprintf(_Tmp,f,arg...);
-	int ss=(CWidth-strlen(_Tmp))/2;
-	for (int i=0;i<ss;i++) putchar(' ');
-	printf("%s",_Tmp);
-	putchar('\n');
 }
 string ReadPassword() {
 	string s;
@@ -97,6 +102,7 @@ string ReadPassword() {
 			s.erase(s.end()-1);
 		} else s+=ch,putchar('*');
 	}
+	return "";
 }
 void ReportError() {
 	printf("Error Code:%d\n",WSAGetLastError());
@@ -104,20 +110,31 @@ void ReportError() {
 	exit(0);
 }
 bool Running=0;
+bool Sending=0;
 inline void ParseCmd() {
 	char type=Global::MsgBuf[0];
 	char* con=Global::MsgBuf+1;
 	switch (type) {
 		case Type::JOIN:{
-			printf("[System] %s joined the room\n",con);
+			printC("[System] %s joined the room",con);
 			break;
 		}
 		case Type::MSG:{
-			system("title hqduihqwudhqw");
-			int i=0;
-			while (con[++i]!='\0');
-            printf("[%s] %s",con,con+i);
-            break;
+			short s;
+			memcpy((char*)&s,con,2);
+			con[s+2]='\0';
+			sprintf(_Tmp,"\n[%s] %s",con+2,con+s+3);
+			Content->append(_Tmp);
+			if (Sending) Edit->clear(),Sending=0;
+			break;
+		}
+		case Type::RENAME:{
+			short s;
+			memcpy((char*)&s,con,2);
+			con[s+2]='\0';
+			sprintf(_Tmp,"\n[System] %s has renamed to %s",con+2,con+s+3);
+			Content->append(_Tmp);
+			break;
 		}
 	}
 }
@@ -136,42 +153,89 @@ THREAD ResultThread(LPVOID para) {
 	}
 }
 void sendMsg(string msg) {
-	char* i=new char[Global::UserLength+msg.length()+3];
-	memcpy(i+1,Global::UserName,Global::UserLength+1);
-	memcpy(i+Global::UserLength+2,msg.data(),msg.length()+1);
+	int len=Global::UserLength+msg.length()+5;
+	char* i=new char[len];
 	i[0]=Type::MSG;
-	Global::sendR(i);
+	memcpy(i+1,(char*)&Global::UserLength,2);
+	memcpy(i+3,Global::UserName,Global::UserLength);
+	i[Global::UserLength+3]=' ';
+	memcpy(i+Global::UserLength+4,msg.data(),msg.length()+1);
+	Sending=1;
+	Global::sendR(i,len);
+	delete[] i;
+}
+void CSplit() {
+	__TMP.clear();
+	__TMP+='\n';
+	for (int i=0;i<CWidth;i++) __TMP+='=';
+	Content->append(__TMP);
+}
+void Main();
+void Disconnect() {
+	closesocket(Global::UDPSocket);
+	UI::Main();
+}
+inline void ExecCmd(const char* s) {
+	Edit->clear();
+	if (memcmp(s,"exit",4)==0) {
+		UI::Disconnect();
+		return;
+	} else if (memcmp(s,"name",4)==0) {
+		char *ns=(char*) s+4;
+		int len=strlen(ns);
+		int i=0;
+		while (ns[i]==' '&&i<len) i++;
+		if (i>=len-1) {
+			Content->append("\n[System] syntax error, expected \"name [string]\"");
+			return;
+		}
+		int leng=Global::UserLength+len-i+5;
+		char *msg=new char[leng];
+		msg[0]=Type::RENAME;
+		memcpy(msg+1,(char*)&Global::UserLength,2);
+		memcpy(msg+3,Global::UserName,Global::UserLength);
+		msg[Global::UserLength+3]=' ';
+		memcpy(msg+Global::UserLength+4,ns+i,len-i+1);
+		Global::sendR(msg,leng);
+		memcpy(Global::UserName,ns+i,len-i);
+		Global::UserLength=len-i;
+		delete[] msg;
+		return;
+	}
+	printC("[System] Undefined Command");
+}
+void SimpleListener(VField* arg) {
+	const char* s=arg->getText().c_str();
+	if (strlen(s)==0) return;
+	if (s[0]=='/')
+		ExecCmd(s+1);
+	else
+		sendMsg(arg->getText());
 }
 void Chat() {
 	cls();
 	setConsoleSize(70,20);
-	SetConsoleScreenBufferSize(CH,(COORD){70,200});
-	setCenterShow();
-	CenterPrint("====================");
-	CenterPrint("| Welcome to VRoom |");
-	CenterPrint("====================");
-	CenterPrint("UserName:%s Port:%d",Global::UserName,Global::Port);
-	Split();
-	printf("[System] %s joined the room\n",Global::UserName);
-	int c=CHeight-getCursorY();
-	for (int i=0;i<c-1;i++) putchar('\n');
-	moveCursor(0,CHeight-1);
-	getchar();
-	string s;
-	char ch;
-	while (true) {
-		while ((ch = _getch()) != '\r') {
-			if(ch == '\b') {
-				if (!s.length()) continue;
-				printf("\b \b");
-				s.erase(s.end()-1);
-			} else s+=ch,putchar(ch);
-		}
-		moveCursor(0,getCursorY());
-		for (int i=0;i<CWidth;i++) putchar(' ');
-		moveCursor(0,getCursorY());
-		sendMsg(s);
-	}
+	VConsole::setBufferSize(70,25);
+	Content=new VField(0,0,CWidth-1,CHeight-2);
+	Content->setSingleLine(0);
+	ContentEmpty=1;
+	printCCenter("=====================");
+	printCCenter("= Welcome to VRoom! =");
+	printCCenter("=====================");
+	printCCenter("UserName:%s RoomID:%d",Global::UserName,Global::Port);
+	CSplit();
+	Edit=new VField(0,CHeight-1,CWidth-1,CHeight-1);
+	Edit->enableInput();
+	Edit->setSingleLine(1);
+	Edit->setAutoRedraw(1);
+	Edit->setTarget(Content);
+	Edit->setEnterListener(SimpleListener);
+	Edit->focus();
+	char c[Global::UserLength+2];
+	c[0]=Type::JOIN;
+	memcpy(c+1,Global::UserName,Global::UserLength+1);
+	Global::sendR(c,Global::UserLength+2);
+	while (true) {Sleep(2000);}
 }
 void Connect() {
 	puts("Initianizing...");
@@ -210,26 +274,27 @@ void Main() {
 	cls();
 	setConsoleSize(40,6);
 	setCenterShow();
-	CenterPrint("Welcome to VRoom!");
-	CenterPrint("VER %s",VERSION);
+	printCenter("Welcome to VRoom!");
+	printCenter("VER %s",VERSION);
 	Split();
-	printf("UserName:",VERSION);
+	printf("UserName:");
 	string tmp;
 	getline(cin,tmp);
 	if (!(Global::UserLength=tmp.length())) Main();
 	Global::UserName=(char*) tmp.data();
-	moveCursor(0,getCursorY()-1);
-	CenterPrint("UserName:%s",Global::UserName);
+	VConsole::moveCursor(0,VConsole::getCursorY()-1);
+	printCenter("UserName:%s",Global::UserName);
 	printf("RoomID:");
 	cin>>Global::Port;
-	moveCursor(0,getCursorY()-1);
-	CenterPrint("RoomID:%d",Global::Port);
+	VConsole::moveCursor(0,VConsole::getCursorY()-1);
+	printCenter("RoomID:%d",Global::Port);
 	Connect();
 }
 };
 int main() {
 	system("title VRoom - By Xs.JIONG");
-	UI::InitConsole();
+	Global::ConsoleWindow=GetForegroundWindow();
+	VConsole::Init();
 	UI::Main();
 	return 0;
 }
