@@ -7,10 +7,13 @@
 #include <vconsole.h>
 #include <vfield.h>
 #include <sstream>
+#include <mmsystem.h>
 #include <cwctype>
+#include <gdiplus.h>
 #define THREAD DWORD WINAPI
 #define BufSize 1024
 using namespace std;
+using namespace Gdiplus;
 
 const char* VERSION="1.0";
 
@@ -44,6 +47,56 @@ namespace Global {
 };
 namespace UI {
 VField *Content,*Edit;
+HWND hwnd;
+HINSTANCE hInstance;
+int iCmdShow;
+Bitmap *Picture;
+int PictureWidth,PictureHeight;
+Graphics *PictureGraph;
+CachedBitmap *CachedPicture;
+TCHAR PictureTitle[]=TEXT("Image");
+TCHAR AppName[]=TEXT("VRoom");
+LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) {
+	switch(message) {
+	case WM_PAINT:{
+		PictureGraph->DrawCachedBitmap(CachedPicture,0,0);
+		return 0;
+	}
+	case WM_DESTROY:
+		//PostQuitMessage(0);
+		return 0;
+	case WM_ERASEBKGND:return 0;
+	}
+	return DefWindowProc(hwnd, message, wParam, lParam);
+}
+void ShowPicture(WCHAR* path) {
+	Picture=new Bitmap(path);
+	PictureWidth=Picture->GetWidth(),PictureHeight=Picture->GetHeight();
+	if (PictureGraph) {
+		RECT r;
+		GetWindowRect(hwnd,&r);
+		CachedPicture=new CachedBitmap(Picture,PictureGraph);
+        PictureGraph=new Graphics(GetDC(hwnd));
+		MoveWindow(hwnd,r.left,r.top,PictureWidth,PictureHeight,1);
+		//UpdateWindow(hwnd);
+		return;
+	}
+	hwnd=CreateWindow(AppName,PictureTitle,WS_OVERLAPPED|WS_SYSMENU|WS_MINIMIZEBOX,
+		CW_USEDEFAULT,
+		CW_USEDEFAULT,
+		PictureWidth,
+		PictureHeight,
+		NULL,NULL,hInstance,NULL);
+	PictureGraph=new Graphics(GetDC(hwnd));
+	CachedPicture=new CachedBitmap(Picture,PictureGraph);
+	ShowWindow(hwnd,iCmdShow);
+	UpdateWindow(hwnd);
+	MSG msg;
+	while (GetMessage(&msg,NULL,0,0)) {
+		TranslateMessage(&msg);
+		DispatchMessage(&msg);
+	}
+}
 void cls() {
 	system("cls");
 }
@@ -111,6 +164,7 @@ void ReportError() {
 }
 bool Running=0;
 bool Sending=0;
+WNDCLASSEX WC;
 inline void ParseCmd() {
 	char type=Global::MsgBuf[0];
 	char* con=Global::MsgBuf+1;
@@ -126,6 +180,7 @@ inline void ParseCmd() {
 			sprintf(_Tmp,"\n[%s] %s",con+2,con+s+3);
 			Content->append(_Tmp);
 			if (Sending) Edit->clear(),Sending=0;
+			ShowPicture(L"F:\\Download\\VAN.jpg");
 			break;
 		}
 		case Type::RENAME:{
@@ -235,6 +290,7 @@ void Chat() {
 	c[0]=Type::JOIN;
 	memcpy(c+1,Global::UserName,Global::UserLength+1);
 	Global::sendR(c,Global::UserLength+2);
+	UI::ShowPicture(L"F:\\Download\\BNTD.jpg");
 	while (true) {Sleep(2000);}
 }
 void Connect() {
@@ -291,7 +347,27 @@ void Main() {
 	Connect();
 }
 };
-int main() {
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,PSTR szCmdLine, int iCmdShow) {
+	UI::WC={0};
+	UI::WC.cbSize=sizeof(WNDCLASSEX);
+	UI::WC.hInstance=hInstance;
+	UI::WC.hIcon=LoadIcon(NULL,IDI_APPLICATION);
+	UI::WC.hCursor=LoadCursor(NULL,IDC_ARROW);
+	//UI::WC.hbrBackground=(HBRUSH) GetStockObject(WHITE_BRUSH);
+	UI::WC.lpszMenuName=NULL;
+	UI::WC.lpfnWndProc=UI::WndProc;
+	UI::WC.lpszClassName=UI::AppName;
+	if(!RegisterClassEx(&UI::WC)) {
+		MessageBox(NULL, TEXT("´´½¨´°¿ÚÊ§°Ü"), UI::AppName, MB_ICONERROR);
+		return 0;
+	};
+	GdiplusStartupInput gdiplusInput;
+	ULONG_PTR token;
+	GdiplusStartup(&token, &gdiplusInput, NULL);
+	UI::iCmdShow=iCmdShow;
+	UI::hInstance=hInstance;
+	UI::hInstance=hInstance;
+	UI::iCmdShow=iCmdShow;
 	system("title VRoom - By Xs.JIONG");
 	Global::ConsoleWindow=GetForegroundWindow();
 	VConsole::Init();

@@ -27,6 +27,7 @@
 		<Linker>
 			<Add library="../WorldEngine/bin/Release/libWorldEngine.a" />
 			<Add library="C:/WINDOWS/system32/ws2_32.dll" />
+			<Add library="C:/Program Files/Dev-Cpp/MinGW32/lib/libgdiplus.a" />
 		</Linker>
 		<Unit filename="main.cpp" />
 		<Extensions>
