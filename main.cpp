@@ -58,6 +58,7 @@ namespace UI {
 	TCHAR AppName[]=TEXT("VRoom");
 	HANDLE ConsoleHandle = GetStdHandle(STD_OUTPUT_HANDLE);
 	CONSOLE_SCREEN_BUFFER_INFO BufferInfo;
+	string readtmp;
 	LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) {
 		switch(message) {
 			case WM_PAINT: {
@@ -65,7 +66,7 @@ namespace UI {
 				return 0;
 			}
 			case WM_DESTROY:
-				//PostQuitMessage(0);
+				PostQuitMessage(0);
 				return 0;
 			case WM_ERASEBKGND:
 				return 0;
@@ -82,11 +83,11 @@ namespace UI {
 	}
 	string inputString() {
 		cls();
-		string ret="";
-		getline(cin,ret);
+		readtmp.clear();
+		getline(cin,readtmp);
 		cls();
 		cout<<Global::Content;
-		return ret;
+		return readtmp;
 	}
 	int getCursorX() {
 		GetConsoleScreenBufferInfo(ConsoleHandle, &BufferInfo);
@@ -275,13 +276,13 @@ namespace UI {
 		if (memcmp(s,"exit",4)==0) {
 			UI::Disconnect();
 			return;
-		} else if (memcmp(s,"name",4)==0) {
-			char *ns=(char*) s+4;
+		} else if (memcmp(s,"rename",6)==0) {
+			char *ns=(char*) s+6;
 			int len=strlen(ns);
 			int i=0;
 			while (ns[i]==' '&&i<len) i++;
 			if (i>=len-1) {
-				/*Content->*/cout<<("\n[System] syntax error, expected \"name [string]\"");
+				/*Content->*/cout<<("\n[System] syntax error, expected \"rename [string]\"");
 				return;
 			}
 			int leng=Global::UserLength+len-i+5;
@@ -329,11 +330,21 @@ namespace UI {
 		c[0]=Type::JOIN;
 		memcpy(c+1,Global::UserName,Global::UserLength+1);
 		Global::sendR(c,Global::UserLength+2);
-//	UI::ShowPicture(L"F:\\Download\\BNTD.jpg");
+//		UI::ShowPicture(L"D:\\test.jpg");
 		while (1) {
 			switch (getch()) {
-				case 't':sendMsg(inputString());break;
-				case 'e':Disconnect();break;
+				case 13:
+					sendMsg(inputString());
+					break;
+				case 27:
+					exit(0);
+					break;
+				case '/':
+					ExecCmd(inputString().c_str());
+					break;
+				case 'e':
+					Disconnect();
+					break;
 			}
 		}
 	}
@@ -374,7 +385,10 @@ namespace UI {
 		char c=getchar();
 		while (c<'0'||c>'9') c=getchar();
 		int ret=0;
-		do	{ret=(ret<<3)+(ret<<1)+c-'0';c=getchar();} while (c>='0'&&c<='9');
+		do	{
+			ret=(ret<<3)+(ret<<1)+c-'0';
+			c=getchar();
+		} while (c>='0'&&c<='9');
 		return ret;
 	}
 	void Main() {
@@ -417,7 +431,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,PSTR szCmdLine, 
 	UI::WC.lpfnWndProc=UI::WndProc;
 	UI::WC.lpszClassName=UI::AppName;
 	if(!RegisterClassEx(&UI::WC)) {
-		MessageBox(NULL, TEXT("´´½¨´°¿ÚÊ§°Ü"), UI::AppName, MB_ICONERROR);
+		MessageBox(NULL, TEXT("Create Window Failed"), UI::AppName, MB_ICONERROR);
 		return 0;
 	};
 	GdiplusStartupInput gdiplusInput;
@@ -425,10 +439,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,PSTR szCmdLine, 
 	GdiplusStartup(&token, &gdiplusInput, NULL);
 	UI::iCmdShow=iCmdShow;
 	UI::hInstance=hInstance;
-	UI::hInstance=hInstance;
-	UI::iCmdShow=iCmdShow;
 	system("title VRoom - By Xs.JIONG");
 	Global::ConsoleWindow=GetForegroundWindow();
+
 	UI::Main();
 	return 0;
 }
